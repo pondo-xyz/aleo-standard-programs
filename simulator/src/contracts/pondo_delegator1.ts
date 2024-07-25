@@ -14,6 +14,7 @@ export interface validator_state {
 export class pondo_delegator1Program {
   signer: string = 'not set';
   caller: string = 'not set';
+  address: string = 'pondo_delegator1.aleo';
   block: {
     height: bigint;
   } = { height: BigInt(0) };
@@ -62,8 +63,10 @@ export class pondo_delegator1Program {
   // shadowed from credits.aleo
 
   initialize() {
-    // Assert that the caller is the pondo core protocol
-    assert(this.caller === 'pondo_core_protocol.aleo');
+    assert(
+      this.caller === 'pondo_core_protocol.aleo',
+      'Assert that the caller is the pondo core protocol'
+    );
 
     return this.finalize_initialize();
   }
@@ -72,32 +75,35 @@ export class pondo_delegator1Program {
     this.state_mapping.set(BigInt('0'), this.TERMINAL);
   }
 
-  set_state(new_state: bigint) {
-    // Assert that the caller is the pondo core protocol
-    assert(this.caller === 'pondo_core_protocol.aleo');
+  prep_rebalance() {
+    assert(
+      this.caller === 'pondo_core_protocol.aleo',
+      'Assert that the caller is the pondo core protocol'
+    );
 
-    // Assert that the state is only of the valid options
-    assert(new_state == this.BOND_ALLOWED || new_state == this.UNBOND_ALLOWED);
-
-    return this.finalize_set_state(new_state);
+    return this.finalize_prep_rebalance();
   }
 
-  finalize_set_state(new_state: bigint) {
-    let current_state: bigint = this.state_mapping.get(BigInt('0'))!;
+  finalize_prep_rebalance() {
+    let current_state: bigint = BigInt.asUintN(
+      8,
+      this.state_mapping.get(BigInt('0'))!
+    );
+    assert(current_state !== undefined);
     if (current_state == this.UNBOND_NOT_ALLOWED) {
-      assert(new_state == this.UNBOND_ALLOWED);
+      this.state_mapping.set(BigInt('0'), this.UNBOND_ALLOWED);
     }
-
-    if (current_state == this.TERMINAL) {
-      assert(new_state == this.BOND_ALLOWED);
-    }
-
-    this.state_mapping.set(BigInt('0'), new_state);
   }
 
   set_validator(new_validator: string, new_commission: bigint) {
-    // Assert that the caller is the pondo core protocol
-    assert(this.caller === 'pondo_core_protocol.aleo');
+    assert(
+      this.caller === 'pondo_core_protocol.aleo',
+      'Assert that the caller is the pondo core protocol'
+    );
+    assert(
+      new_commission <= this.MAX_COMMISSION,
+      'Ensure the commission is within the allowed range'
+    );
 
     return this.finalize_set_validator(new_validator, new_commission);
   }
@@ -111,13 +117,21 @@ export class pondo_delegator1Program {
     this.validator_mapping.set(BigInt('0'), next_validator_state);
 
     // Ensure the delegator is in the correct state
-    let current_state: bigint = this.state_mapping.get(BigInt('0'))!;
-    assert(current_state == this.TERMINAL);
+    let current_state: bigint = BigInt.asUintN(
+      8,
+      this.state_mapping.get(BigInt('0'))!
+    );
+    assert(current_state !== undefined);
+    assert(
+      current_state == this.TERMINAL,
+      'Ensure the delegator is in the this.TERMINAL state'
+    );
 
     this.state_mapping.set(BigInt('0'), this.BOND_ALLOWED);
   }
 
   bond(validator: string, amount: bigint) {
+    this.credits.signer = this.signer;
     this.credits.caller = 'pondo_delegator1.aleo';
     this.credits.bond_public(validator, 'pondo_delegator1.aleo', amount);
 
@@ -128,15 +142,31 @@ export class pondo_delegator1Program {
     let current_validator_state: validator_state = this.validator_mapping.get(
       BigInt('0')
     )!;
-    assert(validator === current_validator_state.validator);
+    assert(current_validator_state !== undefined);
+    assert(
+      validator === current_validator_state.validator,
+      "Ensure we're bonding to the correct validator"
+    );
 
-    let balance: bigint = this.credits.account.get('pondo_delegator1.aleo')!;
-    assert(balance === BigInt('0'));
+    let balance: bigint = BigInt.asUintN(
+      64,
+      this.credits.account.get('pondo_delegator1.aleo')!
+    );
+    assert(balance !== undefined);
+    assert(
+      balance === BigInt('0'),
+      'Ensure the delegator is bonded completely'
+    );
 
-    let current_state: bigint = this.state_mapping.get(BigInt('0'))!;
+    let current_state: bigint = BigInt.asUintN(
+      8,
+      this.state_mapping.get(BigInt('0'))!
+    );
+    assert(current_state !== undefined);
     assert(
       current_state == this.BOND_ALLOWED ||
-        current_state == this.UNBOND_NOT_ALLOWED
+        current_state == this.UNBOND_NOT_ALLOWED,
+      'Ensure the delegator is in the correct state'
     );
 
     this.state_mapping.set(BigInt('0'), this.UNBOND_NOT_ALLOWED);
@@ -148,6 +178,8 @@ export class pondo_delegator1Program {
   // Or if the validator commission changed while the delegator was bonded
   unbond(amount: bigint) {
     // Unbond the delegator, only works if there's actually something to unbond
+
+    this.credits.signer = this.signer;
     this.credits.caller = 'pondo_delegator1.aleo';
     this.credits.unbond_public('pondo_delegator1.aleo', amount);
 
@@ -157,12 +189,13 @@ export class pondo_delegator1Program {
   finalize_unbond() {
     // Should be entirely unbonded
     let bonded: boolean = this.credits.bonded.has('pondo_delegator1.aleo');
-    assert(bonded === false);
+    assert(bonded === false, 'Ensure the delegator was completely unbonded');
 
     // Get the current validator state
     let current_validator_state: validator_state = this.validator_mapping.get(
       BigInt('0')
     )!;
+    assert(current_validator_state !== undefined);
     // Get the committee state of the new validator
     let default_committee_state: committee_state = {
       is_open: true,
@@ -173,17 +206,24 @@ export class pondo_delegator1Program {
       default_committee_state;
     // Check if the commission increased by more than the allowed amount
     let commission_increased: boolean =
-      current_validator_state.commission >
-      validator_committee_state.commission + this.MAX_COMMISSION_INCREASE;
+      validator_committee_state.commission >
+      current_validator_state.commission + this.MAX_COMMISSION_INCREASE;
     let commission_beyond_limit: boolean =
-      current_validator_state.commission > this.MAX_COMMISSION;
+      validator_committee_state.commission > this.MAX_COMMISSION;
 
     // If the commission changed, ban the validator, otherwise ensure the delegator is in the correct state
     if (commission_increased || commission_beyond_limit) {
       this.banned_validators.set(current_validator_state.validator, true);
     } else {
-      let current_state: bigint = this.state_mapping.get(BigInt('0'))!;
-      assert(current_state === this.UNBOND_ALLOWED);
+      let current_state: bigint = BigInt.asUintN(
+        8,
+        this.state_mapping.get(BigInt('0'))!
+      );
+      assert(current_state !== undefined);
+      assert(
+        current_state === this.UNBOND_ALLOWED,
+        'Ensure the delegator is allowed to unbond'
+      );
     }
 
     // Set the state to unbonding
@@ -197,19 +237,30 @@ export class pondo_delegator1Program {
 
   finalize_terminal_state() {
     let bonded: boolean = this.credits.bonded.has('pondo_delegator1.aleo');
-    assert(bonded === false);
+    assert(bonded === false, 'Ensure the delegator was completely unbonded');
     let is_unbonding: boolean = this.credits.unbonding.has(
       'pondo_delegator1.aleo'
     );
-    assert(is_unbonding === false);
+    assert(
+      is_unbonding === false,
+      'Ensure the delegator is no longer unbonding'
+    );
 
-    let current_state: bigint = this.state_mapping.get(BigInt('0'))!;
-    assert(current_state != this.BOND_ALLOWED);
+    let current_state: bigint = BigInt.asUintN(
+      8,
+      this.state_mapping.get(BigInt('0'))!
+    );
+    assert(current_state !== undefined);
+    assert(
+      current_state != this.BOND_ALLOWED,
+      'Ensure the delegator is not in the this.BOND_ALLOWED state'
+    );
 
     if (current_state == this.UNBOND_NOT_ALLOWED) {
       let current_validator_state: validator_state = this.validator_mapping.get(
         BigInt('0')
       )!;
+      assert(current_validator_state !== undefined);
       this.banned_validators.set(current_validator_state.validator, true);
     }
 
@@ -217,9 +268,12 @@ export class pondo_delegator1Program {
   }
 
   transfer_to_core_protocol(amount: bigint) {
-    // Assert that the caller is the pondo core protocol
-    assert(this.caller === 'pondo_core_protocol.aleo');
+    assert(
+      this.caller === 'pondo_core_protocol.aleo',
+      'Assert that the caller is the pondo core protocol'
+    );
 
+    this.credits.signer = this.signer;
     this.credits.caller = 'pondo_delegator1.aleo';
     this.credits.transfer_public('pondo_core_protocol.aleo', amount);
 
@@ -227,11 +281,22 @@ export class pondo_delegator1Program {
   }
 
   finalize_transfer_to_core_protocol() {
-    let balance: bigint = this.credits.account.get('pondo_delegator1.aleo')!;
-    assert(balance === BigInt('0'));
+    let balance: bigint = BigInt.asUintN(
+      64,
+      this.credits.account.get('pondo_delegator1.aleo')!
+    );
+    assert(balance !== undefined);
+    assert(balance === BigInt('0'), 'Ensure all the funds were transferred');
 
-    let current_state: bigint = this.state_mapping.get(BigInt('0'))!;
-    assert(current_state === this.TERMINAL);
+    let current_state: bigint = BigInt.asUintN(
+      8,
+      this.state_mapping.get(BigInt('0'))!
+    );
+    assert(current_state !== undefined);
+    assert(
+      current_state === this.TERMINAL,
+      'Ensure the delegator is in the this.TERMINAL state'
+    );
   }
 
   bond_failed() {
@@ -240,19 +305,21 @@ export class pondo_delegator1Program {
 
   finalize_bond_failed() {
     let bonded: boolean = this.credits.bonded.has('pondo_delegator1.aleo');
-    assert(bonded === false);
+    assert(bonded === false, 'Ensure the delegator was not bonded');
     let is_unbonding: boolean = this.credits.unbonding.has(
       'pondo_delegator1.aleo'
     );
-    assert(is_unbonding === false);
+    assert(is_unbonding === false, 'Ensure the delegator is not unbonding');
 
     let current_validator_state: validator_state = this.validator_mapping.get(
       BigInt('0')
     )!;
+    assert(current_validator_state !== undefined);
     // Bonding always succeeds if the validator isn't in the committee given a sufficient balance
     let validator_committee_state: committee_state = this.credits.committee.get(
       current_validator_state.validator
     )!;
+    assert(validator_committee_state !== undefined);
     let validator_is_unbonding: boolean = this.credits.unbonding.has(
       current_validator_state.validator
     );
@@ -260,11 +327,19 @@ export class pondo_delegator1Program {
     // 1. The validator is closed to delegators
     // 2. The validator is unbonding
     assert(
-      validator_committee_state.is_open == false || validator_is_unbonding
+      validator_committee_state.is_open == false || validator_is_unbonding,
+      'Ensure the validator is closed to delegators or unbonding'
     );
 
-    let current_state: bigint = this.state_mapping.get(BigInt('0'))!;
-    assert(current_state == this.BOND_ALLOWED);
+    let current_state: bigint = BigInt.asUintN(
+      8,
+      this.state_mapping.get(BigInt('0'))!
+    );
+    assert(current_state !== undefined);
+    assert(
+      current_state == this.BOND_ALLOWED,
+      'Ensure the delegator was in the this.BOND_ALLOWED state'
+    );
 
     this.state_mapping.set(BigInt('0'), this.TERMINAL);
 
@@ -280,28 +355,47 @@ export class pondo_delegator1Program {
 
   finalize_insufficient_balance() {
     let bonded: boolean = this.credits.bonded.has('pondo_delegator1.aleo');
-    assert(bonded === false);
+    assert(bonded === false, 'Ensure the delegator was not bonded');
     let is_unbonding: boolean = this.credits.unbonding.has(
       'pondo_delegator1.aleo'
     );
-    assert(is_unbonding === false);
+    assert(is_unbonding === false, 'Ensure the delegator is not unbonding');
 
-    let balance: bigint = this.credits.account.get('pondo_delegator1.aleo')!;
-    assert(balance < BigInt('10000000000'));
+    let balance: bigint = BigInt.asUintN(
+      64,
+      this.credits.account.get('pondo_delegator1.aleo')!
+    );
+    assert(balance !== undefined);
+    assert(
+      balance < BigInt('10000000000'),
+      'Ensure the balance is less than the minimum required to bond'
+    );
 
-    let current_state: bigint = this.state_mapping.get(BigInt('0'))!;
-    assert(current_state == this.BOND_ALLOWED);
+    let current_state: bigint = BigInt.asUintN(
+      8,
+      this.state_mapping.get(BigInt('0'))!
+    );
+    assert(current_state !== undefined);
+    assert(
+      current_state == this.BOND_ALLOWED,
+      'Ensure the delegator was in the this.BOND_ALLOWED state'
+    );
 
     this.state_mapping.set(BigInt('0'), this.TERMINAL);
   }
 
   ban_validator(validator: string) {
+    this.pondo_oracle.signer = this.signer;
     this.pondo_oracle.caller = 'pondo_delegator1.aleo';
     this.pondo_oracle.pondo_ban_validator(validator);
+
     return this.finalize_ban_validator(validator);
   }
 
   finalize_ban_validator(validator: string) {
-    assert(this.banned_validators.has(validator));
+    assert(
+      this.banned_validators.has(validator),
+      'Ensure the validator was in the banned mapping'
+    );
   }
 }

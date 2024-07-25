@@ -79,6 +79,7 @@ export const convertLeoToTs = async (filePath: string) => {
   tsCode = replaceInlineStructs(tsCode);
   tsCode = replaceMultilineGetOrUse(tsCode);
   tsCode = removeVersionFromMTSP(tsCode);
+  tsCode = constrainInts(tsCode);
 
   const tsFilePath = path.join('./src/contracts', `${parentDirectoryName}.ts`);
   console.log(`TypeScript file will be saved to: ${tsFilePath}`);
@@ -184,6 +185,9 @@ const convertType = (leoType: string): string => {
     case 'bool':
       return 'boolean';
     default:
+      if (leoType === 'Future') {
+        return '';
+      }
       if (leoType?.includes('[')) {
         const tsArrayType = convertType(
           leoType.substring(leoType.indexOf('[') + 1, leoType.indexOf(';'))
@@ -194,7 +198,11 @@ const convertType = (leoType: string): string => {
         const tsTupleTypes = leoType
           .substring(1, leoType.length - 1)
           .split(',')
-          .map((type) => convertType(type.trim()));
+          .map((type) => convertType(type.trim()))
+          .filter((type) => type !== '');
+        if (tsTupleTypes.length === 1) {
+          return tsTupleTypes[0];
+        }
         return tsTupleTypes.every((v, _, arr) => v === arr[0])
           ? `${tsTupleTypes[0]}[]`
           : `[${tsTupleTypes.join(', ')}]`;
@@ -296,11 +304,46 @@ const replaceAssignment = (leoLine: string): string => {
 
   if (match) {
     const [, name, type, initialization] = match;
-    // Assuming convertType is a function you have that converts types
-    leoLine = `let ${name}: ${convertType(type)} = ${initialization}`;
+    const convertedType = convertType(type);
+    if (convertedType !== 'bigint') {
+      // skip ints for now
+      leoLine = `let ${name}: ${convertType(type)} = ${initialization}`;
+    }
   }
 
   return leoLine;
+};
+
+const constrainInts = (leoLines: string): string => {
+  // Regex to match the pattern "let <name>: <type> = <initialization>" with a complex type
+  const regex =
+    /(for \()?let (\w+):\s*(i128|i64|i32|i8|u128|u64|u32|u8)\s*=\s*([\s\S]+?);/;
+  let match;
+  while ((match = regex.exec(leoLines))) {
+    const [, forGroup, name, type, initialization] = match;
+    if (!forGroup) {
+      leoLines = leoLines.replace(
+        regex,
+        `let ${name}: ${convertType(type)} = ${truncateInt(
+          type,
+          initialization
+        )}`
+      );
+    }
+  }
+
+  return leoLines;
+};
+
+const truncateInt = (type: string, value: string): string => {
+  const regex = /(u|i)(8|32|64|128)/;
+  const match = type.match(regex);
+  if (match) {
+    const [, sign, bits] = match;
+    return `BigInt.as${sign == 'u' ? 'UintN' : 'IntN'}(${bits}, ${value});`;
+  }
+
+  return value;
 };
 
 const replaceBlockHeight = (leoLine: string): string => {
@@ -341,7 +384,7 @@ const replaceCasts = (leoLine: string): string => {
 
 const replaceTupleReturn = (leoLine: string): string => {
   // Matches a return statement with a tuple, capturing the tuple contents
-  const regex = /return\s+\(([^)]+)\);/;
+  const regex = /return\s+\((.+)\);/;
   return leoLine.replace(regex, (match, tupleContents) => {
     // Replace the captured tuple with an array notation
     return `return [${tupleContents}];`;
@@ -452,9 +495,15 @@ const replaceMapping = (leoLine: string): string => {
   }
 
   const getOrUseRegex =
-    /(\w+)\.get_or_use\((?:(\w+.*\w+(?:\[\d+])*),\s*(\w+)\)(\.\w+)*)*;/;
+    /(\w+)\.get_or_use\((?:(\w+.*\w+(?:\[\d+])*),\s*(\w+)\)(\.\w+)*)*/;
   const getOrUseMatch = leoLine.match(getOrUseRegex);
-  if (getOrUseMatch) {
+  const openParenRegex = /\(/g;
+  const closeParenRegex = /\)/g;
+  if (
+    getOrUseMatch &&
+    (leoLine.match(openParenRegex) || []).length ===
+      (leoLine.match(closeParenRegex) || []).length
+  ) {
     let [, mappingName, keyName, defaultValue, propertyName] = getOrUseMatch;
     const propertyAccess = propertyName ? `?${propertyName}` : '';
     // Adjust to use the correct TypeScript equivalent, considering the "||" for default value
@@ -514,22 +563,32 @@ const removeInterfaceAssignment = (leoLine: string): string => {
 };
 
 const replaceAsserts = (leoLine: string): string => {
-  const assertEqRegex = /assert_eq\(([^,]+),\s*([^\)]+)\);/;
+  const assertEqRegex = /assert_eq\(([^,]+),\s*([^\)]+)\);(.*\/\/.*)?/;
 
   // Replace matched lines with the "assert(arg1 === arg2);" format
-  leoLine = leoLine.replace(assertEqRegex, (match, arg1, arg2) => {
+  leoLine = leoLine.replace(assertEqRegex, (match, arg1, arg2, comment) => {
     // Optionally, convert numeric literals to their TypeScript representation
     // This step can be customized or expanded based on specific needs
-    return `assert(${arg1} === ${arg2});`;
+    return `assert(${arg1} === ${arg2}${
+      comment ? `, "${comment.replace('//', '').trim()}"` : ''
+    });`;
   });
 
-  const assertNeqRegex = /assert_neq\(([^,]+),\s*([^)]+)\);/;
+  const assertNeqRegex = /assert_neq\(([^,]+),\s*([^)]+)\);(.*\/\/.*)?/;
 
   // Replace matched lines with the "assert(arg1 === arg2);" format
-  leoLine = leoLine.replace(assertNeqRegex, (match, arg1, arg2) => {
+  leoLine = leoLine.replace(assertNeqRegex, (match, arg1, arg2, comment) => {
     // Optionally, convert numeric literals to their TypeScript representation
     // This step can be customized or expanded based on specific needs
-    return `assert(${arg1} !== ${arg2});`;
+    return `assert(${arg1} !== ${arg2}${
+      comment ? `, "${comment.replace('//', '').trim()}"` : ''
+    });`;
+  });
+
+  // Include comments in the assertion
+  const assertRegex = /assert\((.+)\);(.*\/\/.*)/;
+  leoLine = leoLine.replace(assertRegex, (match, condition, comment) => {
+    return `assert(${condition}, '${comment.replace('//', '').trim()}');`;
   });
 
   return leoLine;
@@ -641,7 +700,7 @@ const replaceMultilineGetOrUse = (leoLines: string): string => {
       getOrUseRegex,
       `this.${
         externalProgram?.replace('aleo/', '') || ''
-      }${mappingName}.get(${keyName.trim()})${propertyAccess} || ${defaultValue.trim()}${propertyAccess}`
+      }${mappingName}.get(${keyName.trim()})${propertyAccess} || ${defaultValue.trim()}${propertyAccess};`
     );
   }
 
@@ -680,7 +739,7 @@ const convertToInterface = (leoLines: string[], tsCode: string): string => {
         .map((part) => part.trim());
       fields.push(field);
       interfaceCode += `${TAB}${field}: ${convertType(
-        type.replace(',', '')
+        type.replace(/,.*/g, '')
       )};\n`; // Remove commas and convert types
     }
   });
