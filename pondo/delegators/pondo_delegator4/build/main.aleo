@@ -7,6 +7,11 @@ struct committee_state:
     commission as u8;
 
 
+struct admin_operation:
+    arg as field;
+    op_type as u8;
+    request_id as u64;
+
 struct validator_state:
     validator as address;
     commission as u8;
@@ -61,16 +66,20 @@ function prep_rebalance:
 
 finalize prep_rebalance:
     get state_mapping[0u8] into r0;
-    is.neq r0 0u8 into r1;
+    is.neq r0 3u8 into r1;
     assert.eq r1 true;
-    is.neq r0 3u8 into r2;
-    assert.eq r2 true;
-    is.eq r0 1u8 into r3;
-    branch.eq r3 false to end_then_0_0;
+    is.eq r0 1u8 into r2;
+    branch.eq r2 false to end_then_0_0;
     set 2u8 into state_mapping[0u8];
     branch.eq true true to end_otherwise_0_1;
     position end_then_0_0;
     position end_otherwise_0_1;
+    is.eq r0 0u8 into r3;
+    branch.eq r3 false to end_then_0_2;
+    set 4u8 into state_mapping[0u8];
+    branch.eq true true to end_otherwise_0_3;
+    position end_then_0_2;
+    position end_otherwise_0_3;
 
 
 
@@ -79,10 +88,8 @@ function set_validator:
     input r0 as address.public;
     input r1 as u8.public;
     assert.eq self.caller pondo_core_protocol.aleo;
-    lte r1 50u8 into r2;
-    assert.eq r2 true;
-    async set_validator r0 r1 into r3;
-    output r3 as pondo_delegator4.aleo/set_validator.future;
+    async set_validator r0 r1 into r2;
+    output r2 as pondo_delegator4.aleo/set_validator.future;
 
 finalize set_validator:
     input r0 as address.public;
@@ -111,12 +118,13 @@ finalize bond:
     get validator_mapping[0u8] into r2;
     assert.eq r0 r2.validator;
     get credits.aleo/account[pondo_delegator4.aleo] into r3;
-    assert.eq r3 0u64;
-    get state_mapping[0u8] into r4;
-    is.eq r4 0u8 into r5;
-    is.eq r4 1u8 into r6;
-    or r5 r6 into r7;
-    assert.eq r7 true;
+    lt r3 1_000_000u64 into r4;
+    assert.eq r4 true;
+    get state_mapping[0u8] into r5;
+    is.eq r5 0u8 into r6;
+    is.eq r5 1u8 into r7;
+    or r6 r7 into r8;
+    assert.eq r8 true;
     set 1u8 into state_mapping[0u8];
 
 
@@ -140,13 +148,13 @@ finalize unbond:
     gt r4.commission r5 into r6;
     gt r4.commission 50u8 into r7;
     or r6 r7 into r8;
-    branch.eq r8 false to end_then_0_2;
+    branch.eq r8 false to end_then_0_4;
     set true into banned_validators[r2.validator];
-    branch.eq true true to end_otherwise_0_3;
-    position end_then_0_2;
+    branch.eq true true to end_otherwise_0_5;
+    position end_then_0_4;
     get state_mapping[0u8] into r9;
     assert.eq r9 2u8;
-    position end_otherwise_0_3;
+    position end_otherwise_0_5;
     set 3u8 into state_mapping[0u8];
 
 
@@ -165,12 +173,12 @@ finalize terminal_state:
     is.neq r2 0u8 into r3;
     assert.eq r3 true;
     is.eq r2 1u8 into r4;
-    branch.eq r4 false to end_then_0_4;
+    branch.eq r4 false to end_then_0_6;
     get validator_mapping[0u8] into r5;
     set true into banned_validators[r5.validator];
-    branch.eq true true to end_otherwise_0_5;
-    position end_then_0_4;
-    position end_otherwise_0_5;
+    branch.eq true true to end_otherwise_0_7;
+    position end_then_0_6;
+    position end_otherwise_0_7;
     set 4u8 into state_mapping[0u8];
 
 
@@ -187,9 +195,10 @@ finalize transfer_to_core_protocol:
     input r0 as credits.aleo/transfer_public.future;
     await r0;
     get credits.aleo/account[pondo_delegator4.aleo] into r1;
-    assert.eq r1 0u64;
-    get state_mapping[0u8] into r2;
-    assert.eq r2 4u8;
+    lt r1 1_000_000u64 into r2;
+    assert.eq r2 true;
+    get state_mapping[0u8] into r3;
+    assert.eq r3 4u8;
 
 
 
@@ -199,44 +208,13 @@ function bond_failed:
     output r0 as pondo_delegator4.aleo/bond_failed.future;
 
 finalize bond_failed:
-    contains credits.aleo/bonded[pondo_delegator4.aleo] into r0;
-    assert.eq r0 false;
-    contains credits.aleo/unbonding[pondo_delegator4.aleo] into r1;
-    assert.eq r1 false;
-    get validator_mapping[0u8] into r2;
-    get credits.aleo/committee[r2.validator] into r3;
-    contains credits.aleo/unbonding[r2.validator] into r4;
-    is.eq r3.is_open false into r5;
-    or r5 r4 into r6;
-    assert.eq r6 true;
-    get state_mapping[0u8] into r7;
-    is.eq r7 0u8 into r8;
-    assert.eq r8 true;
+    get validator_mapping[0u8] into r0;
+    get credits.aleo/committee[r0.validator] into r1;
+    is.eq r1.is_open false into r2;
+    assert.eq r2 true;
+    get state_mapping[0u8] into r3;
+    is.eq r3 0u8 into r4;
+    assert.eq r4 true;
     set 4u8 into state_mapping[0u8];
-    is.eq r3.is_open false into r9;
-    branch.eq r9 false to end_then_0_6;
-    set true into banned_validators[r2.validator];
-    branch.eq true true to end_otherwise_0_7;
-    position end_then_0_6;
-    position end_otherwise_0_7;
-
-
-
-
-function insufficient_balance:
-    async insufficient_balance into r0;
-    output r0 as pondo_delegator4.aleo/insufficient_balance.future;
-
-finalize insufficient_balance:
-    contains credits.aleo/bonded[pondo_delegator4.aleo] into r0;
-    assert.eq r0 false;
-    contains credits.aleo/unbonding[pondo_delegator4.aleo] into r1;
-    assert.eq r1 false;
-    get credits.aleo/account[pondo_delegator4.aleo] into r2;
-    lt r2 10_000_000_000u64 into r3;
-    assert.eq r3 true;
-    get state_mapping[0u8] into r4;
-    is.eq r4 0u8 into r5;
-    assert.eq r5 true;
-    set 4u8 into state_mapping[0u8];
+    set true into banned_validators[r0.validator];
 

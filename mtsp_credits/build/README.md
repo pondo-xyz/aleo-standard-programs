@@ -1,4 +1,4 @@
-# multi_token_support_program.aleo
+# mtsp_credits.aleo
 
 ## Build Guide
 
