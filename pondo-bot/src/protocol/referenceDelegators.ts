@@ -35,7 +35,6 @@ import {
   REFERENCE_DELEGATOR_ADMIN,
   CREDITS_PROGRAM,
 } from '../constants';
-``;
 
 export const REFERENCE_DELEGATOR_PROGRAM = pondoPrograms.find((program) =>
   program.includes('reference_delegator')
