@@ -1,24 +1,33 @@
-import { JSONRPCClient } from 'json-rpc-2.0';
-import { delay, formatAleoString } from '../util';
+import { JSONRPCClient } from "json-rpc-2.0";
+import { delay, formatAleoString } from "../util";
 
-import { MemberData } from './types';
-import { CLIENT_URL, NETWORK, PALEO_TOKEN_ID, PONDO_TOKEN_ID, PRIVATE_KEY, RPC_URL } from '../constants';
-import * as Aleo from '@demox-labs/aleo-sdk';
-import { pondoPrograms } from '../compiledPrograms';
-import { submitTransaction } from './execute';
+import { MemberData } from "./types";
+import {
+  CLIENT_URL,
+  NETWORK,
+  PALEO_TOKEN_ID,
+  PONDO_TOKEN_ID,
+  PRIVATE_KEY,
+  RPC_URL,
+} from "../constants";
+import * as Aleo from "@demox-labs/aleo-sdk";
+import { pondoPrograms } from "../compiledPrograms";
+import { submitTransaction } from "./execute";
 
 export const getClient = () => {
   const client = new JSONRPCClient((jsonRPCRequest: any) =>
     fetch(RPC_URL, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'content-type': 'application/json'
+        "content-type": "application/json",
       },
-      body: JSON.stringify({ ...jsonRPCRequest })
+      body: JSON.stringify({ ...jsonRPCRequest }),
     }).then((response: any) => {
       if (response.status === 200) {
         // Use client.receive when you received a JSON-RPC response.
-        return response.json().then((jsonRPCResponse: any) => client.receive(jsonRPCResponse));
+        return response
+          .json()
+          .then((jsonRPCResponse: any) => client.receive(jsonRPCResponse));
       } else if (jsonRPCRequest.id !== undefined) {
         return Promise.reject(new Error(response.statusText));
       }
@@ -39,8 +48,8 @@ export async function getProgram(programId: string): Promise<string> {
   }
 
   const client = getClient();
-  const program = await client.request('program', {
-    id: programId
+  const program = await client.request("program", {
+    id: programId,
   });
 
   programCache[programId] = program;
@@ -50,8 +59,8 @@ export async function getProgram(programId: string): Promise<string> {
 
 export async function getMappingValue(
   mappingKey: string,
-  programId: string = 'credits.aleo',
-  mappingName: string = 'account',
+  programId: string = "credits.aleo",
+  mappingName: string = "account",
   maxRetries: number = 6,
   baseDelay: number = 300
 ): Promise<string> {
@@ -60,22 +69,24 @@ export async function getMappingValue(
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       await delay(baseDelay * Math.pow(2, attempt - 1)); // Exponential backoff
-      const response = (await client.request('getMappingValue', {
+      const response = (await client.request("getMappingValue", {
         program_id: programId,
         mapping_name: mappingName,
-        key: mappingKey
+        key: mappingKey,
       })) as string;
 
       return response; // Return response if successful
     } catch (error) {
       if (attempt === maxRetries) {
-        throw new Error(`Failed to get mapping value after ${maxRetries} attempts: ${error}`);
+        throw new Error(
+          `Failed to get mapping value after ${maxRetries} attempts: ${error}`
+        );
       }
     }
   }
 
   // This line should not be reached as the function will either return or throw an error
-  throw new Error('Unexpected error in getMappingValue function');
+  throw new Error("Unexpected error in getMappingValue function");
 }
 
 export async function getMTSPBalance(
@@ -84,43 +95,52 @@ export async function getMTSPBalance(
   authorized: boolean = false
 ): Promise<bigint> {
   const MTSP_PROGRAM = pondoPrograms.find((program) =>
-    program.includes('token_registry')
+    program.includes("token_registry")
   );
   const tokenOwnerString = `{ account: ${publicKey}, token_id: ${tokenId} }`;
-    const tokenOwnerHash = Aleo.Plaintext.fromString(
-      NETWORK,
-      tokenOwnerString
-    ).hashBhp256();
+  const tokenOwnerHash = Aleo.Plaintext.fromString(
+    NETWORK,
+    tokenOwnerString
+  ).hashBhp256();
 
-  const mtspMappingName = authorized ? 'authorized_balances' : 'balances';
+  const mtspMappingName = authorized ? "authorized_balances" : "balances";
   const paleoBalance = await getMappingValue(
     tokenOwnerHash,
     MTSP_PROGRAM!,
     mtspMappingName
   );
   const paleoBalanceValue = paleoBalance
-    ? JSON.parse(formatAleoString(paleoBalance))['balance'].slice(0, -4)
-    : '0';
+    ? JSON.parse(formatAleoString(paleoBalance))["balance"].slice(0, -4)
+    : "0";
 
   return BigInt(paleoBalanceValue);
 }
 
 export async function getPublicBalance(
   publicKey: string,
-  programId: string = 'credits.aleo'
+  programId: string = "credits.aleo"
 ): Promise<bigint> {
   // Attempt to get the balance using the mapping value first
   try {
-    const balanceString = await getMappingValue(publicKey, programId, 'account');
+    const balanceString = await getMappingValue(
+      publicKey,
+      programId,
+      "account"
+    );
     return parseBalanceString(balanceString);
   } catch (error) {
-    console.error('Error getting balance from getMappingValue, trying direct API call', error);
+    console.error(
+      "Error getting balance from getMappingValue, trying direct API call",
+      error
+    );
   }
 
-  throw new Error('Failed to obtain balance from both getMappingValue and direct API call');
+  throw new Error(
+    "Failed to obtain balance from both getMappingValue and direct API call"
+  );
 }
 
-function parseBalanceString(balanceString: string): bigint {
+export function parseBalanceString(balanceString: string): bigint {
   try {
     // Assuming the balance string format needs parsing similar to the original approach
     return BigInt(balanceString.slice(0, -3));
@@ -138,40 +158,42 @@ export const getPublicTransactionsForProgram = async (
 ): Promise<any[]> => {
   const client = getClient();
   try {
-    const transactions = await client.request('aleoTransactionsForProgram', {
+    const transactions = await client.request("aleoTransactionsForProgram", {
       programId,
       functionName,
       page,
-      maxTransactions
+      maxTransactions,
     });
     return transactions;
   } catch (e: any) {
-    console.log(`Error fetching transactions for program ${programId}: ${e}, ${functionName}, ${page}, ${maxTransactions}`);
+    console.log(
+      `Error fetching transactions for program ${programId}: ${e}, ${functionName}, ${page}, ${maxTransactions}`
+    );
     return [];
   }
 };
 
 export const getLatestCommittee = async (): Promise<MemberData> => {
   const client = getClient();
-  const height = await client.request('getLatestCommittee', {});
+  const height = await client.request("getLatestCommittee", {});
   return height;
 };
 
 export const getHeight = async () => {
   const client = getClient();
-  const height = await client.request('getHeight', {});
+  const height = await client.request("getHeight", {});
   return height;
 };
 
 export const getLatestBlock = async () => {
   const height = await getHeight();
   const client = getClient();
-  const blocks = await client.request('getAleoBlocks', {
+  const blocks = await client.request("getAleoBlocks", {
     start: height,
-    end: height + 1
+    end: height + 1,
   });
   return blocks[0];
-}
+};
 
 export const delegateTransaction = async (
   authorization: string,
@@ -183,20 +205,20 @@ export const delegateTransaction = async (
 ): Promise<string> => {
   const client = getClient();
   try {
-    const requestId: string = await client.request('generateTransaction', {
+    const requestId: string = await client.request("generateTransaction", {
       authorization,
       program,
       fee_authorization: feeAuthorization,
       function: functionName,
       broadcast,
       imports,
-      url: CLIENT_URL
+      url: CLIENT_URL,
     });
 
     return requestId;
   } catch (e: any) {
     console.log(`Error delegating transaction: ${e}`);
-    throw new Error('Error delegating transaction');
+    throw new Error("Error delegating transaction");
   }
 };
 
@@ -208,39 +230,42 @@ export const delegateDeployTransaction = async (
 ): Promise<string> => {
   const client = getClient();
   try {
-    const requestId: string = await client.request('generateTransaction', {
+    const requestId: string = await client.request("generateTransaction", {
       // Transaction specific, left empty for deployment
-      authorization: '',
-      program: '',
-      function: '',
+      authorization: "",
+      program: "",
+      function: "",
       broadcast,
       imports: {},
       // Deployment specific
       deployment,
       fee_authorization: feeAuthorization,
       owner,
-      url: CLIENT_URL
+      url: CLIENT_URL,
     });
 
     return requestId;
   } catch (e: any) {
     console.log(`Error delegating transaction: ${e}`);
-    throw new Error('Error delegating transaction');
+    throw new Error("Error delegating transaction");
   }
 };
 
-export const delegateDeployment = async (program: string, imports = {}): Promise<string> => {
+export const delegateDeployment = async (
+  program: string,
+  imports = {}
+): Promise<string> => {
   const client = getClient();
   try {
-    const requestId: string = await client.request('generateDeployment', {
+    const requestId: string = await client.request("generateDeployment", {
       program,
-      imports
+      imports,
     });
 
     return requestId;
   } catch (e: any) {
     console.log(`Error delegating deployment: ${e}`);
-    throw new Error('Error delegating deployment');
+    throw new Error("Error delegating deployment");
   }
 };
 
@@ -256,12 +281,12 @@ export const getDelegatedTransaction = async (
 ): Promise<GeneratedTransactionResponse> => {
   const client = getClient();
   try {
-    const transaction = (await client.request('getGeneratedTransaction', {
-      request_id: requestId
+    const transaction = (await client.request("getGeneratedTransaction", {
+      request_id: requestId,
     })) as GeneratedTransactionResponse;
     return transaction;
   } catch {
-    throw new Error('Transaction not found');
+    throw new Error("Transaction not found");
   }
 };
 
@@ -277,12 +302,12 @@ export const getDelegatedDeployment = async (
 ): Promise<GeneratedDeploymentResponse> => {
   const client = getClient();
   try {
-    const deployment = (await client.request('getGeneratedDeployment', {
-      request_id: requestId
+    const deployment = (await client.request("getGeneratedDeployment", {
+      request_id: requestId,
     })) as GeneratedDeploymentResponse;
     return deployment;
   } catch {
-    throw new Error('Transaction not found');
+    throw new Error("Transaction not found");
   }
 };
 
@@ -290,13 +315,17 @@ export const pollDelegatedTransaction = async (
   requestId: string,
   retryTime: number = 5000
 ): Promise<GeneratedTransactionResponse> => {
-  console.log('Polling transaction:', requestId);
+  console.log("Polling transaction:", requestId);
   const transaction = await getDelegatedTransaction(requestId);
-  if (transaction.status === 'Failed' || transaction.status === 'Completed' || transaction.status === 'Broadcasted') {
+  if (
+    transaction.status === "Failed" ||
+    transaction.status === "Completed" ||
+    transaction.status === "Broadcasted"
+  ) {
     console.log(transaction);
     return transaction;
   } else {
-    console.log('Transaction status:', transaction.status);
+    console.log("Transaction status:", transaction.status);
   }
   await delay(retryTime);
   return await pollDelegatedTransaction(requestId);
@@ -308,7 +337,7 @@ export const pollDelegatedDeployment = async (
   retryTime: number = 5000
 ): Promise<GeneratedDeploymentResponse> => {
   const deployment = await getDelegatedDeployment(requestId);
-  if (deployment.status === 'Failed' || deployment.status === 'Completed') {
+  if (deployment.status === "Failed" || deployment.status === "Completed") {
     return deployment;
   }
   await delay(retryTime);
@@ -319,10 +348,10 @@ export const pollDelegatedDeployment = async (
 export const getChainHeight = async (): Promise<number> => {
   const client = getClient();
   try {
-    const height = (await client.request('latest/height', {}));
+    const height = await client.request("latest/height", {});
     return height;
   } catch {
-    throw new Error('Height endpoint errored.');
+    throw new Error("Height endpoint errored.");
   }
 };
 
@@ -332,31 +361,44 @@ export const airDropCredits = async (publicKey: string, amount: bigint) => {
     NETWORK!,
     PRIVATE_KEY!,
     Aleo.Program.getCreditsProgram(NETWORK).toString(),
-    'transfer_public',
+    "transfer_public",
     [publicKey, `${amount.toString()}u64`],
     2
   );
-}
+};
 
-export const transactionAcceptedBlockHeight = async (transactionResult: any, retriesRemaining: number = 25): Promise<number> => {
+export const transactionAcceptedBlockHeight = async (
+  transactionResult: any,
+  retriesRemaining: number = 25
+): Promise<number> => {
   if (retriesRemaining <= 0) {
     return -1;
   }
 
   const transaction = JSON.parse(transactionResult.transaction);
   const transactionId = transaction.id;
-  console.log(`Checking block height for accepted or rejected with id ${transactionId}`);
+  console.log(
+    `Checking block height for accepted or rejected with id ${transactionId}`
+  );
   const client = getClient();
   try {
-    const foundTransaction = await client.request('transaction', { id: transactionId });
+    const foundTransaction = await client.request("transaction", {
+      id: transactionId,
+    });
     return foundTransaction.block_id;
   } catch (e: any) {
     await delay(2_000);
-    return await transactionAcceptedBlockHeight(transactionResult, retriesRemaining - 1);
+    return await transactionAcceptedBlockHeight(
+      transactionResult,
+      retriesRemaining - 1
+    );
   }
-}
+};
 
-export const isTransactionAccepted = async (transactionResult: any, retriesRemaining: number = 25): Promise<boolean> => {
+export const isTransactionAccepted = async (
+  transactionResult: any,
+  retriesRemaining: number = 25
+): Promise<boolean> => {
   if (retriesRemaining <= 0) {
     return false;
   }
@@ -364,11 +406,13 @@ export const isTransactionAccepted = async (transactionResult: any, retriesRemai
   const transaction = JSON.parse(transactionResult.transaction);
   const transactionId = transaction.id;
   const feeId = transaction.fee.transition.id;
-  console.log(`Checking if transaction was accepted or rejected with id ${transactionId} & fee id ${feeId}`);
+  console.log(
+    `Checking if transaction was accepted or rejected with id ${transactionId} & fee id ${feeId}`
+  );
   const client = getClient();
   try {
-    const foundTransactionId = await client.request('getTransactionId', {
-      transition_id: feeId
+    const foundTransactionId = await client.request("getTransactionId", {
+      transition_id: feeId,
     });
     console.log(`Found transaction id: ${foundTransactionId}`);
     return foundTransactionId === transactionId;
@@ -376,4 +420,4 @@ export const isTransactionAccepted = async (transactionResult: any, retriesRemai
     await delay(2_000);
     return await isTransactionAccepted(transactionResult, retriesRemaining - 1);
   }
-}
+};
