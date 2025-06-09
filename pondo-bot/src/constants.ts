@@ -1,5 +1,5 @@
-import * as dotenv from 'dotenv';
-import { pondoProgramToCode, pondoPrograms } from './compiledPrograms';
+import * as dotenv from "dotenv";
+import { pondoProgramToCode, pondoPrograms } from "./compiledPrograms";
 
 // Load environment variables
 dotenv.config();
@@ -21,13 +21,13 @@ export const TEST_USER2_ADDRESS = process.env.TEST_USER2_ADDRESS;
 
 // If no private key or network is provided, throw an error
 if (!PRIVATE_KEY) {
-  throw new Error('No private key provided');
+  throw new Error("No private key provided");
 }
 if (!NETWORK) {
-  throw new Error('No network provided');
+  throw new Error("No network provided");
 }
 if (!RPC_URL) {
-  throw new Error('No RPC URL provided');
+  throw new Error("No RPC URL provided");
 }
 
 // Oracle constants
@@ -43,9 +43,12 @@ export const MULTI_SIG_PRIVATE_KEY_4 = process.env.MULTI_SIG_PRIVATE_KEY_4;
 export const MULTI_SIG_ADDRESS_4 = process.env.MULTI_SIG_ADDRESS_4;
 
 export const DEFAULT_VALIDATOR_ADDRESS = process.env.DEFAULT_VALIDATOR_ADDRESS;
-export const DEFAULT_PONDO_FOUNDATION_ADDRESS = 'aleo1hmrpe0ts2khluprhex3y46cqqy44pme7lwc40ls9nexftx0xhu8sxxpnd0';
-export const PONDO_FOUNDATION_ADDRESS = process.env.PONDO_FOUNDATION_ADDRESS || DEFAULT_PONDO_FOUNDATION_ADDRESS;
-export const REFERENCE_DELEGATOR_ADMIN = process.env.REFERENCE_DELEGATOR_ADMIN || ADDRESS;
+export const DEFAULT_PONDO_FOUNDATION_ADDRESS =
+  "aleo1hmrpe0ts2khluprhex3y46cqqy44pme7lwc40ls9nexftx0xhu8sxxpnd0";
+export const PONDO_FOUNDATION_ADDRESS =
+  process.env.PONDO_FOUNDATION_ADDRESS || DEFAULT_PONDO_FOUNDATION_ADDRESS;
+export const REFERENCE_DELEGATOR_ADMIN =
+  process.env.REFERENCE_DELEGATOR_ADMIN || ADDRESS;
 
 export const EPOCH_BLOCKS_DEFAULT = 120_960;
 export const EPOCH_BLOCKS = process.env.EPOCH_BLOCKS
@@ -82,30 +85,37 @@ export const MIN_LIQUIDITY_PERCENT = process.env.MIN_LIQUIDITY_PERCENT
   : MIN_LIQUIDITY_PERCENT_DEFAULT;
 
 export const PALEO_TOKEN_ID_DEFAULT =
-  '1751493913335802797273486270793650302076377624243810059080883537084141842600field';
+  "1751493913335802797273486270793650302076377624243810059080883537084141842600field";
 export const PALEO_TOKEN_ID = process.env.PALEO_TOKEN_ID
   ? process.env.PALEO_TOKEN_ID
   : PALEO_TOKEN_ID_DEFAULT;
 export const PONDO_TOKEN_ID_DEFAULT =
-  '1751493913335802797273486270793650302076377624243810059080883537084141842601field';
+  "1751493913335802797273486270793650302076377624243810059080883537084141842601field";
 export const PONDO_TOKEN_ID = process.env.PONDO_TOKEN_ID
   ? process.env.PONDO_TOKEN_ID
   : PONDO_TOKEN_ID_DEFAULT;
-export const VERSION = process.env.VERSION ? process.env.VERSION : '';
-export const ORACLE_ONLY = process.env.ORACLE_ONLY === 'true' || false;
-export const RUN_PROTOCOL_ONLY = process.env.RUN_PROTOCOL_ONLY === 'true' || false;
-export const PONDO_ORACLE_PROGRAM = pondoPrograms.find(program => program.includes('validator_oracle'));
-export const PONDO_ORACLE_PROGRAM_CODE = pondoProgramToCode[PONDO_ORACLE_PROGRAM!];
-export const MANUAL_DEPLOY = process.env.MANUAL_DEPLOY === 'true' || false;
-export const INITIALIZATION_AMOUNT = process.env.INITIALIZATION_AMOUNT || '101_000_000u64';
-export const BOT_DELAY = process.env.BOT_DELAY ? parseInt(process.env.BOT_DELAY) : 15_000;
-export const VALIDATOR_TO_BOOST = process.env.VALIDATOR_TO_BOOST || '';
-export const BOOST_AMOUNT = process.env.BOOST_AMOUNT || '100_000';
+export const VERSION = process.env.VERSION ? process.env.VERSION : "";
+export const ORACLE_ONLY = process.env.ORACLE_ONLY === "true" || false;
+export const RUN_PROTOCOL_ONLY =
+  process.env.RUN_PROTOCOL_ONLY === "true" || false;
+export const PONDO_ORACLE_PROGRAM = pondoPrograms.find((program) =>
+  program.includes("validator_oracle")
+);
+export const PONDO_ORACLE_PROGRAM_CODE =
+  pondoProgramToCode[PONDO_ORACLE_PROGRAM!];
+export const MANUAL_DEPLOY = process.env.MANUAL_DEPLOY === "true" || false;
+export const INITIALIZATION_AMOUNT =
+  process.env.INITIALIZATION_AMOUNT || "101_000_000u64";
+export const BOT_DELAY = process.env.BOT_DELAY
+  ? parseInt(process.env.BOT_DELAY)
+  : 15_000;
+export const VALIDATOR_TO_BOOST = process.env.VALIDATOR_TO_BOOST || "";
+export const BOOST_AMOUNT = "100_000_000";
 
 // Non .env constants
-export const CREDITS_PROGRAM = 'credits.aleo';
+export const CREDITS_PROGRAM = "credits.aleo";
 export const ZERO_ADDRESS = `aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc`;
 export const MIN_DELEGATION = BigInt(10_000_000_000); // 10k credits
 export const PRECISION_UNSIGNED = BigInt(10_000);
 export const CREDITS_TOKEN_ID =
-  '3443843282313283355522573239085696902919850365217539366784739393210722344986field';
+  "3443843282313283355522573239085696902919850365217539366784739393210722344986field";
