@@ -42,7 +42,7 @@ on:
       bot_delay:
         required: true
         type: string
-    
+
     secrets:
       PRIVATE_KEY:
         required: true
@@ -53,7 +53,6 @@ on:
 
 env:
   BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
-  AWS_REGION: ap-southeast-1
   PONDO_BOT_ECR_REPOSITORY: pondo-bot
   CLOUD_FORMATION_TEMPLATE: .aws/pondo-bot-stack.yml
   STACK_PREFIX: pondo-bot
@@ -65,72 +64,72 @@ jobs:
     environment: ${{ inputs.environment }}
 
     steps:
-    - name: Check Out Code
-      uses: actions/checkout@v3
+      - name: Check Out Code
+        uses: actions/checkout@v3
 
-    - name: Use Node 20
-      uses: actions/setup-node@v4
-      with:
-        node-version: 20
+      - name: Use Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        audience: sts.amazonaws.com
-        aws-region: ${{ inputs.region }}
-        role-to-assume: arn:aws:iam::287641434880:role/${{ inputs.github_actions_role }}
-    
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          audience: sts.amazonaws.com
+          aws-region: ${{ inputs.region }}
+          role-to-assume: arn:aws:iam::896271372236:role/${{ inputs.github_actions_role }}
 
-    - name: Create Dotenv File
-      run: |
-        echo "${{ secrets.ENV }}" > .env
-        echo "PRIVATE_KEY=${{ secrets.PRIVATE_KEY }}" >> .env
-        echo "ADDRESS=${{ secrets.ADDRESS }}" >> .env
-        echo "NETWORK=${{ inputs.network }}" >> .env
-        echo "RPC_URL=${{ inputs.rpc_url }}" >> .env
-        echo "CLIENT_URL=${{ inputs.client_url }}" >> .env
-        echo "EPOCH_BLOCKS=${{ inputs.epoch_blocks }}" >> .env
-        echo "ORACLE_UPDATE_BLOCKS=${{ inputs.oracle_update_blocks }}" >> .env
-        echo "REBALANCE_BLOCKS=${{ inputs.rebalance_blocks }}" >> .env
-        echo "VERSION=${{ inputs.version }}" >> .env
-        echo "PALEO_TOKEN_ID=${{ inputs.paleo_token_id }}" >> .env
-        echo "PONDO_TOKEN_ID=${{ inputs.pondo_protocol_token_id }}" >> .env
-        echo "RUN_PROTOCOL_ONLY=true" >> .env
-        echo "BOT_DELAY=${{ inputs.bot_delay }}" >> .env
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
 
-    - name: Build And Tag Pondo Bot Image
-      id: build-pondo-bot-image
-      env:
-        IMAGE_TAG: ${{ github.sha }}
-      run: |
-        cp ./.env ./pondo-bot/.env
-        cd ./pondo-bot
-        docker build -t built-pondo-bot-image .
-        cd ..
-        echo "image=built-pondo-bot-image" >> $GITHUB_OUTPUT
+      - name: Create Dotenv File
+        run: |
+          echo "${{ secrets.ENV }}" > .env
+          echo "PRIVATE_KEY=${{ secrets.PRIVATE_KEY }}" >> .env
+          echo "ADDRESS=${{ secrets.ADDRESS }}" >> .env
+          echo "NETWORK=${{ inputs.network }}" >> .env
+          echo "RPC_URL=${{ inputs.rpc_url }}" >> .env
+          echo "CLIENT_URL=${{ inputs.client_url }}" >> .env
+          echo "EPOCH_BLOCKS=${{ inputs.epoch_blocks }}" >> .env
+          echo "ORACLE_UPDATE_BLOCKS=${{ inputs.oracle_update_blocks }}" >> .env
+          echo "REBALANCE_BLOCKS=${{ inputs.rebalance_blocks }}" >> .env
+          echo "VERSION=${{ inputs.version }}" >> .env
+          echo "PALEO_TOKEN_ID=${{ inputs.paleo_token_id }}" >> .env
+          echo "PONDO_TOKEN_ID=${{ inputs.pondo_protocol_token_id }}" >> .env
+          echo "RUN_PROTOCOL_ONLY=true" >> .env
+          echo "BOT_DELAY=${{ inputs.bot_delay }}" >> .env
 
-    - name: Rename Pondo Bot Image
-      id: rename-pondo-bot-image
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: ${{ env.PONDO_BOT_ECR_REPOSITORY }}
-        BUILT_IMAGE_TAG: ${{ steps.build-pondo-bot-image.outputs.image }}
-        AWS_IMAGE_TAG: ${{ github.sha }}-${{ env.BRANCH_NAME }}
-      run: |
-        docker tag $BUILT_IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$AWS_IMAGE_TAG
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$AWS_IMAGE_TAG
-        echo "pondo-bot-image-tag=$AWS_IMAGE_TAG" >> $GITHUB_OUTPUT
+      - name: Build And Tag Pondo Bot Image
+        id: build-pondo-bot-image
+        env:
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          cp ./.env ./pondo-bot/.env
+          cd ./pondo-bot
+          docker build -t built-pondo-bot-image .
+          cd ..
+          echo "image=built-pondo-bot-image" >> $GITHUB_OUTPUT
 
-    - name: Create Stack
-      uses: aws-actions/aws-cloudformation-github-deploy@v1
-      with:
-        name: ${{ env.STACK_PREFIX }}-${{ env.BRANCH_NAME }}
-        template: ${{ env.CLOUD_FORMATION_TEMPLATE }}
-        capabilities: 'CAPABILITY_NAMED_IAM'
-        no-fail-on-empty-changeset: "1"
-        parameter-overrides: >-
-          LatestTag=${{ steps.rename-pondo-bot-image.outputs.pondo-bot-image-tag }},
-          BranchName=${{ env.BRANCH_NAME }}
+      - name: Rename Pondo Bot Image
+        id: rename-pondo-bot-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.PONDO_BOT_ECR_REPOSITORY }}
+          BUILT_IMAGE_TAG: ${{ steps.build-pondo-bot-image.outputs.image }}
+          AWS_IMAGE_TAG: ${{ github.sha }}-${{ env.BRANCH_NAME }}
+        run: |
+          docker tag $BUILT_IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$AWS_IMAGE_TAG
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$AWS_IMAGE_TAG
+          echo "pondo-bot-image-tag=$AWS_IMAGE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Create Stack
+        uses: aws-actions/aws-cloudformation-github-deploy@v1
+        with:
+          name: ${{ env.STACK_PREFIX }}-${{ env.BRANCH_NAME }}
+          template: ${{ env.CLOUD_FORMATION_TEMPLATE }}
+          capabilities: 'CAPABILITY_NAMED_IAM'
+          no-fail-on-empty-changeset: '1'
+          parameter-overrides: >-
+            LatestTag=${{ steps.rename-pondo-bot-image.outputs.pondo-bot-image-tag }},
+            BranchName=${{ env.BRANCH_NAME }}
